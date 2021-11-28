@@ -20,8 +20,7 @@ def eu_countries_pattern(row_idx: int, seed: int):
     return EU_COUNTRIES[seed % len(EU_COUNTRIES)]
 
 def more_countries_pattern(row_idx: int, seed: int):
-    arr = ['Germany', 'Austria', 'France', 'Spain', 'Denmark']
-    return arr[seed % len(arr)]
+    return MORE_COUNTRIES[seed % len(MORE_COUNTRIES)]
 
 data_patterns = {
     'index': index_pattern,
