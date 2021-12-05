@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.Random;
 import java.util.Set;
+import java.util.List;
 
 public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message> {
 
@@ -39,7 +40,11 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 	public static class TaskMessage implements Message {
 		private static final long serialVersionUID = -4667745204456518160L;
 		ActorRef<LargeMessageProxy.Message> dependencyMinerLargeMessageProxy;
-		int task;
+
+		String[] headerA;
+		String[] headerB;
+		List<String[]> contentA;
+		List<String[]> contentB;
 	}
 
 	////////////////////////
@@ -87,17 +92,18 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 	}
 
 	private Behavior<Message> handle(TaskMessage message) {
-		this.getContext().getLog().info("Working!");
-		// I should probably know how to solve this task, but for now I just pretend some work...
+		this.getContext().getLog().info("Received work: table with {} columns and {} lines, table with {} columns and {} lines", message.headerA.length, message.contentA.size(), message.headerB.length, message.contentB.size());
 
-		int result = message.getTask();
-		long time = System.currentTimeMillis();
-		Random rand = new Random();
-		int runtime = (rand.nextInt(2) + 2) * 1000;
-		while (System.currentTimeMillis() - time < runtime)
-			result = ((int) Math.abs(Math.sqrt(result)) * result) % 1334525;
+		ddp.algo.DataSource sourceA = new ddp.algo.DataSource(message.headerA, message.contentA);
+		ddp.algo.DataSource sourceB = new ddp.algo.DataSource(message.headerB, message.contentB);
 
-		LargeMessageProxy.LargeMessage completionMessage = new DependencyMiner.CompletionMessage(this.getContext().getSelf(), result);
+		List<ddp.algo.UnaryInclusion.Dependency> aInB = ddp.algo.UnaryInclusion.run(sourceA, sourceB);
+		List<ddp.algo.UnaryInclusion.Dependency> bInA = ddp.algo.UnaryInclusion.run(sourceB, sourceA);
+
+		this.getContext().getLog().info("Found {} INDs for A in B: {}", aInB.size(), aInB.toString());
+		this.getContext().getLog().info("Found {} INDs for B in A: {}", bInA.size(), bInA.toString());
+
+		LargeMessageProxy.LargeMessage completionMessage = new DependencyMiner.CompletionMessage(this.getContext().getSelf(), aInB, bInA);
 		this.largeMessageProxy.tell(new LargeMessageProxy.SendMessage(completionMessage, message.getDependencyMinerLargeMessageProxy()));
 
 		return this;
