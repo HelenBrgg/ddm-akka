@@ -35,7 +35,7 @@ public class UnaryInclusion {
         
         return uniqueX.entrySet().stream()
             .flatMap(colX -> uniqueY.entrySet().stream()
-                .filter(colY -> colY.getValue().containsAll(colX.getValue()))
+                .filter(colY -> colY.getValue().size() <= colY.getValue().size() && colY.getValue().containsAll(colX.getValue()))
                 .map(colY -> new Dependency(colX.getKey(), colY.getKey())))
             .collect(Collectors.toList());
     }
@@ -49,8 +49,12 @@ public class UnaryInclusion {
             DataSource sourceX = new DataSource(new FileReader(args[0]));
             DataSource sourceY = new DataSource(new FileReader(args[1]));
 
-            List<Dependency> deps = run(sourceX, sourceY);
-            for (Dependency dep : deps) {
+            List<Dependency> deps1 = run(sourceX, sourceY);
+            List<Dependency> deps2 = run(sourceY, sourceX);
+            for (Dependency dep : deps1) {
+                System.out.printf("%s ⊆ %s\n", dep.columnX, dep.columnY);
+            }
+            for (Dependency dep : deps2) {
                 System.out.printf("%s ⊆ %s\n", dep.columnX, dep.columnY);
             }
         } catch (Exception e) {
