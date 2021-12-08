@@ -10,7 +10,6 @@ import java.util.Objects;
 @Getter
 @AllArgsConstructor
 public class InclusionDependency {
-
 	private final File dependentFile;
 	private final String[] dependentAttributes;
 
@@ -19,8 +18,8 @@ public class InclusionDependency {
 
 	@Override
 	public String toString() {
-		return this.fileNameOf(this.dependentFile) + " -> " + this.fileNameOf(this.referencedFile) + ": " +
-				Arrays.toString(this.dependentAttributes) + " c " + Arrays.toString(this.referencedAttributes);
+		return this.fileNameOf(this.dependentFile) + " → " + this.fileNameOf(this.referencedFile) + ": " +
+				Arrays.toString(this.dependentAttributes) + " ⊆ " + Arrays.toString(this.referencedAttributes);
 	}
 
 	private String fileNameOf(File file) {
