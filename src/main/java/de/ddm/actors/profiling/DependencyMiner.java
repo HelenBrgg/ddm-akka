@@ -66,6 +66,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	public static class RegistrationMessage implements Message {
 		private static final long serialVersionUID = -4025238529984914107L;
 		ActorRef<DependencyWorker.Message> dependencyWorker;
+		ActorRef<LargeMessageProxy.Message> dependencyWorkerLargeMessageProxy;
 	}
 
 	@Getter
@@ -107,6 +108,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		this.largeMessageProxy = this.getContext().spawn(LargeMessageProxy.create(this.getContext().getSelf().unsafeUpcast()), LargeMessageProxy.DEFAULT_NAME);
 
 		this.dependencyWorkers = new ArrayList<>();
+		this.dependencyWorkerLargeProxies = new ArrayList<>();
 		this.unassignedTasks = new ArrayDeque<>();
 		this.busyWorkers = new HashMap<>();
 
@@ -137,6 +139,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
 	// list of all registered DependencyWorkers
 	private final List<ActorRef<DependencyWorker.Message>> dependencyWorkers;
+	private final List<ActorRef<LargeMessageProxy.Message>> dependencyWorkerLargeProxies;
 	// all Tasks that not yet assigned
 	private final Queue<Task> unassignedTasks;
 	// all Workers that are busy, with their assigned Task
@@ -176,7 +179,9 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
 	// try to delegate all unassigned Tasks to idle DependencyWorkers
 	private void delegateTasks(){
-		for (ActorRef<DependencyWorker.Message> worker : this.dependencyWorkers) {
+		for (int workerIdx = 0; workerIdx < this.dependencyWorkers.size(); ++workerIdx){
+		    ActorRef<DependencyWorker.Message> worker = this.dependencyWorkers.get(workerIdx);
+		    ActorRef<LargeMessageProxy.Message> workerProxy = this.dependencyWorkerLargeProxies.get(workerIdx);
 			if (this.unassignedTasks.isEmpty()) {
 				break; // no more unassigned tasks
 			}
@@ -191,7 +196,9 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 			String[] headerB = this.headerLines[task.tableB];
 			List<String[]> contentA = this.contentLines.get(task.tableA);
 			List<String[]> contentB = this.contentLines.get(task.tableB);
-			worker.tell(new DependencyWorker.TaskMessage(this.largeMessageProxy, headerA, headerB, contentA, contentB));
+
+			LargeMessageProxy.LargeMessage taskMessage = new DependencyWorker.TaskMessage(this.largeMessageProxy, headerA, headerB, contentA, contentB);
+			this.largeMessageProxy.tell(new LargeMessageProxy.SendMessage (taskMessage, workerProxy));
 			this.busyWorkers.put(worker, task);
 			this.getContext().getLog().info("Delegated task ({},{})", task.tableA, task.tableB);
 		}
@@ -229,6 +236,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		if (!this.dependencyWorkers.contains(dependencyWorker)) {
 			this.dependencyWorkers.add(dependencyWorker);
 			this.getContext().watch(dependencyWorker);
+			this.dependencyWorkerLargeProxies.add(message.getDependencyWorkerLargeMessageProxy());
 
 			// we may have unassigned tasks
 			delegateTasks();
