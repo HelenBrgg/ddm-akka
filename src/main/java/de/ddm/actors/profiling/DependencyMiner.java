@@ -100,6 +100,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		this.contentLines = new ArrayList<>();
 		for (int id = 0; id < this.inputFiles.length; id++)
 			this.contentLines.add(new ArrayList<>());
+        this.finishedReading = new boolean[this.inputFiles.length];
 
 		this.inputReaders = new ArrayList<>(inputFiles.length);
 		for (int id = 0; id < this.inputFiles.length; id++)
@@ -132,6 +133,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	private final File[] inputFiles;      // TODO should be List
 	private final String[][] headerLines; // TODO should be List
 	private final List<List<String[]>> contentLines;
+    private final boolean[] finishedReading;
 
 	private final List<ActorRef<InputReader.Message>> inputReaders;
 	private final ActorRef<ResultCollector.Message> resultCollector;
@@ -180,11 +182,12 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	// try to delegate all unassigned Tasks to idle DependencyWorkers
 	private void delegateTasks(){
 		for (int workerIdx = 0; workerIdx < this.dependencyWorkers.size(); ++workerIdx){
-		    ActorRef<DependencyWorker.Message> worker = this.dependencyWorkers.get(workerIdx);
-		    ActorRef<LargeMessageProxy.Message> workerProxy = this.dependencyWorkerLargeProxies.get(workerIdx);
 			if (this.unassignedTasks.isEmpty()) {
 				break; // no more unassigned tasks
 			}
+
+		    ActorRef<DependencyWorker.Message> worker = this.dependencyWorkers.get(workerIdx);
+		    ActorRef<LargeMessageProxy.Message> workerProxy = this.dependencyWorkerLargeProxies.get(workerIdx);
 
 			if (this.busyWorkers.containsKey(worker)) {
 				continue; // this worker is busy
@@ -207,21 +210,22 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	private Behavior<Message> handle(BatchMessage message) {
 		this.getContext().getLog().info("Read {} messages from table {}", message.batch.size(), message.id);
 
-		// generate new tasks for batch message.
-		for (int id = 0; id < this.headerLines.length; ++id) {
-			// we want to check this new batch against every already-loaded batch
-			if (!this.contentLines.get(id).isEmpty()) {
-				this.getContext().getLog().info("Generated task ({},{})", id, message.id);
-				this.unassignedTasks.add(new Task(id, message.id));
-			}
+		if (message.getBatch().size() != 0) {
+			this.inputReaders.get(message.getId()).tell(new InputReader.ReadBatchMessage(this.getContext().getSelf()));
 		}
-
-		// IMPORTANT: new batch needs to be added after above loop
 		this.contentLines.get(message.id).addAll(message.batch);
 
-		// TODO implement batching?
-		//if (message.getBatch().size() != 0)
-		//	this.inputReaders.get(message.getId()).tell(new InputReader.ReadBatchMessage(this.getContext().getSelf()));
+			// generate new tasks for batch message.
+		if (message.getBatch().size() == 0) {
+			for (int id = 0; id < this.headerLines.length; ++id) {
+				// we want to check this new batch against every already-loaded batch
+				if (this.finishedReading[id]) {
+					this.getContext().getLog().info("Generated task ({},{})", id, message.id);
+					this.unassignedTasks.add(new Task(id, message.id));
+				}
+			}
+			this.finishedReading[message.getId()] = true;
+		}
 
 		// we may have idle workers
 		delegateTasks();
