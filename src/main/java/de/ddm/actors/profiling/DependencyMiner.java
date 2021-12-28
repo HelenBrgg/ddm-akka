@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Random;
+import java.util.Arrays;
 
 public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
@@ -197,18 +198,26 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 			}
 			// this worker is idle
 
-			{ /* system load throttling */
-			    Task task = this.unassignedTasks.peek();
-			    int sizeA = this.contentLines.get(task.tableA).size();
-			    int sizeB = this.contentLines.get(task.tableB).size();
-				if (this.memUsage + sizeA + sizeB > 1000 * 1000 * 1000) {
-					/* we don't want to work on this task right now, our system load it too big */
-					continue;
-				}
-				this.memUsage += sizeA + sizeB;
-			}
-
 			Task task = this.unassignedTasks.remove();
+
+			do { /* system load throttling */
+			    int sizeA = this.contentLines.get(task.tableA).stream()
+								.mapToInt(line -> line.length * Arrays.stream(line).mapToInt(cell -> cell.length()).sum())
+								.sum();
+			    int sizeB = this.contentLines.get(task.tableB).stream()
+								.mapToInt(line -> line.length * Arrays.stream(line).mapToInt(cell -> cell.length()).sum())
+								.sum();
+				if (this.memUsage + sizeA + sizeB > 500 * 1000 * 1000) { // 500 mb, TODO Make limit configurable
+					/* we don't want to work on this task right now, our system load it too high */
+					this.getContext().getLog().info("Delayed task ({},{}) due to high system load", task.tableA, task.tableB);
+					this.unassignedTasks.add(task);
+					task = this.unassignedTasks.remove();
+					continue;
+				} else {
+					this.memUsage += sizeA + sizeB;
+				}
+			} while (false);
+
 			String[] headerA = this.headerLines[task.tableA];
 			String[] headerB = this.headerLines[task.tableB];
 			List<String[]> contentA = this.contentLines.get(task.tableA);
