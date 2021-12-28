@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+# fuzzing
+# 1. data/TPCH/*.csv tabelle einlesen
+# 2. zeilen (evtl. in zufälliger reihenfolge oder zyklisch) ausgeben, bis num_rows erreicht
+# 3. mit X%-wahrscheinlichkeit Wert modifizieren
+# 4. mit X%-wahrscheinlichkeit Zeilen mixen
+# benutzung: ./datagen --num-rows 100 --col fuzz_customer 
+
 from typing import List, Tuple, Callable
 import argparse
 import sys
@@ -15,15 +22,15 @@ def index_pattern(row_idx: int, seed: int):
 
 EU_COUNTRIES = ['Germany', 'Austria', 'France', 'Spain', 'Denmark']
 MORE_COUNTRIES = EU_COUNTRIES + ['Russia', 'USA', 'Egypt', 'South-Korea']
-NULL_COUNTRIES= EU_COUNTRIES + MORE_COUNTRIES + [""]
+NULL_COUNTRIES = EU_COUNTRIES + MORE_COUNTRIES + ['']
 
-def eu_countries_pattern(row_idx: int, seed: int):
+def eu_countries_pattern(row: int, col: int, seed: int):
     return EU_COUNTRIES[seed % len(EU_COUNTRIES)]
 
-def more_countries_pattern(row_idx: int, seed: int):
+def more_countries_pattern(row: int, col: int, seed: int):
     return MORE_COUNTRIES[seed % len(MORE_COUNTRIES)]
 
-def null_countries_pattern(row_idx: int, seed: int):
+def null_countries_pattern(row: int, col: int, seed: int):
     return NULL_COUNTRIES[seed % len(NULL_COUNTRIES)]
 
 data_patterns = {
@@ -32,6 +39,18 @@ data_patterns = {
     'more_countries': more_countries_pattern,
     'null_countries': null_countries_pattern
 }
+
+# ===== fuzzing =====
+
+fuzz_tables = None # TODO csv tabellen einlesen
+
+def fuzz_pattern(table, row: int, col: int, seed: int):
+    pass # TODO zelle wählen
+
+for table in fuzz_tables:
+    data_patterns['fuzz_' + table.name] = lambda row, col, seed: fuzz_pattern(table, row, col, seed)
+
+# ===== main =====
 
 def main(num_rows: int, cols: List[Tuple[str, str]]):
     # generate head row
@@ -47,11 +66,12 @@ def main(num_rows: int, cols: List[Tuple[str, str]]):
     # generate value rows according to patterns
     rand = Random(1234556789) # TODO make configurable
     for j in range(0, num_rows):
-        for i in range(0, len(cols)):
 
+        seed = rand.randint(0, num_rows * len(cols) * 42) # NOTE just some integer
+
+        for i in range(0, len(cols)):
             data_pattern = data_patterns[cols[i][1]]
-            seed = rand.randint(0, num_rows * len(cols) * 42) # NOTE just some integer
-            value = (data_pattern)(j, seed)
+            value = (data_pattern)(j, i, seed)
             sys.stdout.write(value)
 
             if i + 1 < len(cols):
