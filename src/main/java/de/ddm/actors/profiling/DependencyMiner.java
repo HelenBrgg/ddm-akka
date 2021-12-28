@@ -213,9 +213,8 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 					this.unassignedTasks.add(task);
 					task = this.unassignedTasks.remove();
 					continue;
-				} else {
-					this.memUsage += sizeA + sizeB;
 				}
+				this.memUsage += sizeA + sizeB;
 			} while (false);
 
 			String[] headerA = this.headerLines[task.tableA];
