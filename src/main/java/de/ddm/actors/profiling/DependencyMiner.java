@@ -95,6 +95,8 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	private DependencyMiner(ActorContext<Message> context) {
 		super(context);
 		this.discoverNaryDependencies = SystemConfigurationSingleton.get().isHardMode();
+
+		this.memUsage = 0;
 		this.inputFiles = InputConfigurationSingleton.get().getInputFiles();
 		this.headerLines = new String[this.inputFiles.length][];
 		this.contentLines = new ArrayList<>();
@@ -129,6 +131,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
 	private long startTime;
 
+	private int memUsage;
 	private final boolean discoverNaryDependencies;
 	private final File[] inputFiles;      // TODO should be List
 	private final String[][] headerLines; // TODO should be List
@@ -194,6 +197,17 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 			}
 			// this worker is idle
 
+			{ /* system load throttling */
+			    Task task = this.unassignedTasks.peek();
+			    int sizeA = this.contentLines.get(task.tableA).size();
+			    int sizeB = this.contentLines.get(task.tableB).size();
+				if (this.memUsage + sizeA + sizeB > 1000 * 1000 * 1000) {
+					/* we don't want to work on this task right now, our system load it too big */
+					continue;
+				}
+				this.memUsage += sizeA + sizeB;
+			}
+
 			Task task = this.unassignedTasks.remove();
 			String[] headerA = this.headerLines[task.tableA];
 			String[] headerB = this.headerLines[task.tableB];
@@ -215,7 +229,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		}
 		this.contentLines.get(message.id).addAll(message.batch);
 
-			// generate new tasks for batch message.
+		// generate new tasks for batch message.
 		if (message.getBatch().size() == 0) {
 			for (int id = 0; id < this.headerLines.length; ++id) {
 				// we want to check this new batch against every already-loaded batch
@@ -252,6 +266,12 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		ActorRef<DependencyWorker.Message> dependencyWorker = message.getDependencyWorker();
 		Task task = this.busyWorkers.get(message.getDependencyWorker());
 		this.getContext().getLog().info("Completed work for task ({},{})", task.tableA, task.tableB);
+
+        { /* system load throttling */
+			int sizeA = this.contentLines.get(task.tableA).size();
+			int sizeB = this.contentLines.get(task.tableB).size();
+			this.memUsage -= sizeA + sizeB;
+		}
 
 		List<InclusionDependency> inds = new ArrayList<>();
 		for (ddp.algo.UnaryInclusion.Dependency dep : message.aInB) {
