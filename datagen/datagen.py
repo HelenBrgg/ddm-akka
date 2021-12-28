@@ -15,6 +15,7 @@ def index_pattern(row_idx: int, seed: int):
 
 EU_COUNTRIES = ['Germany', 'Austria', 'France', 'Spain', 'Denmark']
 MORE_COUNTRIES = EU_COUNTRIES + ['Russia', 'USA', 'Egypt', 'South-Korea']
+NULL_COUNTRIES= EU_COUNTRIES + MORE_COUNTRIES + [""]
 
 def eu_countries_pattern(row_idx: int, seed: int):
     return EU_COUNTRIES[seed % len(EU_COUNTRIES)]
@@ -22,10 +23,14 @@ def eu_countries_pattern(row_idx: int, seed: int):
 def more_countries_pattern(row_idx: int, seed: int):
     return MORE_COUNTRIES[seed % len(MORE_COUNTRIES)]
 
+def null_countries_pattern(row_idx: int, seed: int):
+    return NULL_COUNTRIES[seed % len(NULL_COUNTRIES)]
+
 data_patterns = {
     'index': index_pattern,
     'eu_countries': eu_countries_pattern,
     'more_countries': more_countries_pattern,
+    'null_countries': null_countries_pattern
 }
 
 def main(num_rows: int, cols: List[Tuple[str, str]]):
