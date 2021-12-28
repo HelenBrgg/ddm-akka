@@ -20,13 +20,7 @@ import lombok.NoArgsConstructor;
 import lombok.EqualsAndHashCode;
 
 import java.io.File;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Random;
+import java.util.*;
 
 public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
@@ -96,10 +90,6 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		super(context);
 		this.discoverNaryDependencies = SystemConfigurationSingleton.get().isHardMode();
 		this.inputFiles = InputConfigurationSingleton.get().getInputFiles();
-		this.headerLines = new String[this.inputFiles.length][];
-		this.contentLines = new ArrayList<>();
-		for (int id = 0; id < this.inputFiles.length; id++)
-			this.contentLines.add(new ArrayList<>());
 
 		this.inputReaders = new ArrayList<>(inputFiles.length);
 		for (int id = 0; id < this.inputFiles.length; id++)
@@ -129,9 +119,8 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	private long startTime;
 
 	private final boolean discoverNaryDependencies;
-	private final File[] inputFiles;      // TODO should be List
-	private final String[][] headerLines; // TODO should be List
-	private final List<List<String[]>> contentLines;
+	private final File[] inputFiles;
+	private final LocalDataStorage dataStorage = new LocalDataStorage();
 
 	private final List<ActorRef<InputReader.Message>> inputReaders;
 	private final ActorRef<ResultCollector.Message> resultCollector;
@@ -173,7 +162,8 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	private Behavior<Message> handle(HeaderMessage message) {
 		this.getContext().getLog().info("Read header of size {} from table {}", message.header.length, message.id);
 
-		this.headerLines[message.getId()] = message.getHeader();
+		String tableName = this.inputFiles[message.id].getName();
+		this.dataStorage.addTable(tableName, Arrays.asList(message.header));
 		return this;
 	}
 
@@ -217,7 +207,10 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		}
 
 		// IMPORTANT: new batch needs to be added after above loop
-		this.contentLines.get(message.id).addAll(message.batch);
+		String tableName = this.inputFiles[message.id].getName();
+		for (String[] row : message.batch) {
+		    this.dataStorage.addRow(tableName, Arrays.asList(row));
+		}
 
 		// TODO implement batching?
 		//if (message.getBatch().size() != 0)
