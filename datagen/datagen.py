@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 
-# fuzzing
+# Aufgabe 1: Fuzzing
 # 1. data/TPCH/*.csv tabelle einlesen
-# 2. zeilen (evtl. in zufälliger reihenfolge oder zyklisch) ausgeben, bis num_rows erreicht
+# 2. Zeilen (evtl. in zufälliger reihenfolge oder zyklisch) ausgeben, bis num_rows erreicht
 # 3. mit X%-wahrscheinlichkeit Wert modifizieren
 # 4. mit X%-wahrscheinlichkeit Zeilen mixen
-# benutzung: ./datagen --num-rows 100 --col fuzz_customer 
+#
+# Benutzung: ./datagen --num-rows 100 --col A fuzz_customer 
+
+# Aufgabe 2: Unix Sockets
+# 1. --stream argument für die kommand-zeile
+# 2. stdout auf einen Unix-Socket umleiten
+# 
+# Benutzung: ./datagen ... --stream table1.csv
 
 from typing import List, Tuple, Callable
 import argparse
@@ -16,9 +23,10 @@ parser = argparse.ArgumentParser(description='Tool for generating random data ta
 parser.add_argument('--num-rows', required=True, type=int, action='store', nargs=1, metavar='COUNT')
 parser.add_argument('--col', required=True, action='append', nargs=2, metavar=('NAME', 'PATTERN'))
 args = parser.parse_args()
+print(args)
 
-def index_pattern(row_idx: int, seed: int):
-    return str(row_idx + 1)
+def index_pattern(row: int, col: int, seed: int):
+    return str(row + 1)
 
 EU_COUNTRIES = ['Germany', 'Austria', 'France', 'Spain', 'Denmark']
 MORE_COUNTRIES = EU_COUNTRIES + ['Russia', 'USA', 'Egypt', 'South-Korea']
@@ -42,7 +50,7 @@ data_patterns = {
 
 # ===== fuzzing =====
 
-fuzz_tables = None # TODO csv tabellen einlesen
+fuzz_tables = [] # TODO csv tabellen einlesen
 
 def fuzz_pattern(table, row: int, col: int, seed: int):
     pass # TODO zelle wählen
@@ -52,16 +60,21 @@ for table in fuzz_tables:
 
 # ===== main =====
 
+if args.stream is None
+    stream = sys.stdout
+else:
+    pass # TODO unix socket angeben
+
 def main(num_rows: int, cols: List[Tuple[str, str]]):
     # generate head row
     for i in range(0, len(cols)):
-        sys.stdout.write(cols[i][0])
+        stream.write(cols[i][0])
 
         if i + 1 < len(cols):
-            sys.stdout.write(',')
+            stream.write(',')
 
-    sys.stdout.write('\n')
-    sys.stdout.flush()
+    stream.write('\n')
+    stream.flush()
 
     # generate value rows according to patterns
     rand = Random(1234556789) # TODO make configurable
@@ -72,14 +85,13 @@ def main(num_rows: int, cols: List[Tuple[str, str]]):
         for i in range(0, len(cols)):
             data_pattern = data_patterns[cols[i][1]]
             value = (data_pattern)(j, i, seed)
-            sys.stdout.write(value)
+            stream.write(value)
 
             if i + 1 < len(cols):
-                sys.stdout.write(',')
+                stream.write(',')
 
         if j + 1 < num_rows:
-            sys.stdout.write('\n')
-        sys.stdout.flush()
-
+            stream.write('\n')
+        stream.flush()
 
 main(args.num_rows[0], args.col)
