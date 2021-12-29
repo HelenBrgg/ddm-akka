@@ -1,19 +1,20 @@
-package de.ddm.actors.profiling;
+package de.ddm.structures;
 
 import java.util.*;
 
-public class LocalDataStorage {
+// TODO we should optimize this to store data in column-order as well.
+public class ColumnStorage {
     Map<String, List<String>> headerList = new HashMap<String, List<String>>();
     Map<String, List<List<String>>> contentList = new HashMap<String, List<List<String>>>();
 
-    public LocalDataStorage() {}
+    public ColumnStorage() {}
 
-    void addTable(String tableName, List<String> header) {
+    public void addTable(String tableName, List<String> header) {
         this.headerList.put(tableName, header);
         this.contentList.put(tableName, new ArrayList<List<String>>());
     }
 
-    List<String> getTableNames() {
+    public List<String> getTableNames() {
         List<String> tableNames = new ArrayList<String>();
         for (String key : headerList.keySet()) {
             tableNames.add(key);
@@ -21,23 +22,27 @@ public class LocalDataStorage {
         return tableNames;
     }
 
-    List<String> getColumn(String tableName, String columnName) {
+    public List<String> getHeader(String tableName) {
+        return this.headerList.get(tableName);
+    }
+
+    public List<String> getColumn(String tableName, String columnName) {
         List<List<String>> table = this.contentList.get(tableName);
         int index = headerList.get(tableName).indexOf(columnName);
-        List<String> column = new ArrayList<String>();
 
+        List<String> column = new ArrayList<String>(table.size());
         for (List<String> row : table) {
             column.add(row.get(index));
         }
         return column;
     }
 
-    void addRow(String tableName, List<String> values) {
+    public void addRow(String tableName, List<String> values) {
         this.contentList.get(tableName).add(values);
     }
 
     public static void main(String args[]) {
-        LocalDataStorage store = new LocalDataStorage();
+        ColumnStorage store = new ColumnStorage();
         
         store.addTable("1", Arrays.asList("A","B", "C", "D"));
         store.addRow("1", Arrays.asList("e","f", "g", "h"));
