@@ -9,13 +9,12 @@ import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.receptionist.Receptionist;
 import de.ddm.actors.patterns.LargeMessageProxy;
 import de.ddm.serialization.AkkaSerializable;
+import de.ddm.structures.InclusionDependency;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.Random;
-import java.util.Set;
-import java.util.List;
+import java.util.*;
 
 public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message> {
 
@@ -41,10 +40,12 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 		private static final long serialVersionUID = -4667745204456518160L;
 		ActorRef<LargeMessageProxy.Message> dependencyMinerLargeMessageProxy;
 
-		String[] headerA;
-		String[] headerB;
-		List<String[]> contentA;
-		List<String[]> contentB;
+		String tableNameA;
+		String tableNameB;
+		List<String> headerA;
+		List<String> headerB;
+		List<List<String>> columnsA;
+		List<List<String>> columnsB;
 	}
 
 	////////////////////////
@@ -91,19 +92,45 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 		return this;
 	}
 
+	private static Map<String, Set<String>> extractUniqueValues(List<String> header, List<List<String>> columns) {
+		Map<String, Set<String>> unique = new HashMap<>();
+		for (int i = 0; i < header.size(); ++i) {
+			unique.put(header.get(i), new HashSet<>(columns.get(i)));
+		}
+		return unique;
+	}
+
+
 	private Behavior<Message> handle(TaskMessage message) {
-		this.getContext().getLog().info("Received work: table with {} columns and {} lines, table with {} columns and {} lines", message.headerA.length, message.contentA.size(), message.headerB.length, message.contentB.size());
+		this.getContext().getLog().info(
+			"Received (partial) table {} with {} columns and {} lines, table {} with {} columns and {} lines",
+			message.tableNameA, message.headerA.size(), message.columnsA.get(0).size(),
+			message.tableNameB, message.headerB.size(), message.columnsB.get(0).size()); // TODO return early on empty columns
 
-		ddp.algo.DataSource sourceA = new ddp.algo.DataSource(message.headerA, message.contentA);
-		ddp.algo.DataSource sourceB = new ddp.algo.DataSource(message.headerB, message.contentB);
+		Map<String, Set<String>> uniqueValuesA = extractUniqueValues(message.headerA, message.columnsA);
+		Map<String, Set<String>> uniqueValuesB = extractUniqueValues(message.headerB, message.columnsB);
 
-		List<ddp.algo.UnaryInclusion.Dependency> aInB = ddp.algo.UnaryInclusion.run(sourceA, sourceB);
-		List<ddp.algo.UnaryInclusion.Dependency> bInA = ddp.algo.UnaryInclusion.run(sourceB, sourceA);
+		List<InclusionDependency> inclusionDeps = new ArrayList<>();
+		uniqueValuesA.forEach((columnA, setA) -> {
+			uniqueValuesB.forEach((columnB, setB) -> {
+				int cardinalityA = setA.size();
+				int cardinalityB = setB.size();
 
-		this.getContext().getLog().info("Found {} INDs for A in B: {}", aInB.size(), aInB.toString());
-		this.getContext().getLog().info("Found {} INDs for B in A: {}", bInA.size(), bInA.toString());
+				// NOTE both or none of these branches may be executed
+				if (cardinalityA <= cardinalityB && setB.containsAll(setA)) {
+					inclusionDeps.add(new InclusionDependency(message.tableNameA, message.tableNameB, columnA, columnB));
+				}
+				if (cardinalityB <= cardinalityA && setA.containsAll(setB)) {
+					inclusionDeps.add(new InclusionDependency(message.tableNameB, message.tableNameA, columnB, columnA));
+				}
+			});
+		});
 
-		LargeMessageProxy.LargeMessage completionMessage = new DependencyMiner.CompletionMessage(this.getContext().getSelf(), aInB, bInA);
+		this.getContext().getLog().info(
+			"Found {} INDs for table {} and table {}: {}",
+			inclusionDeps.size(), message.tableNameA, message.tableNameB, inclusionDeps);
+
+		LargeMessageProxy.LargeMessage completionMessage = new DependencyMiner.CompletionMessage(this.getContext().getSelf(), inclusionDeps);
 		this.largeMessageProxy.tell(new LargeMessageProxy.SendMessage(completionMessage, message.getDependencyMinerLargeMessageProxy()));
 
 		return this;

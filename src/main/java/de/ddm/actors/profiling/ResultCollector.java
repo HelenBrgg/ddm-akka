@@ -18,7 +18,11 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+
+import com.opencsv.CSVWriter;
+import com.opencsv.ICSVWriter;
 
 public class ResultCollector extends AbstractBehavior<ResultCollector.Message> {
 
@@ -55,20 +59,38 @@ public class ResultCollector extends AbstractBehavior<ResultCollector.Message> {
 	private ResultCollector(ActorContext<Message> context) throws IOException {
 		super(context);
 
-		File file = new File(DomainConfigurationSingleton.get().getResultCollectorOutputFileName());
-		if (file.exists() && !file.delete())
-			throw new IOException("Could not delete existing result file: " + file.getName());
-		if (!file.createNewFile())
-			throw new IOException("Could not create result file: " + file.getName());
+		String outputFileName = DomainConfigurationSingleton.get().getResultCollectorOutputFileName();
 
-		this.writer = new BufferedWriter(new FileWriter(file));
+		File txt_file = new File(outputFileName + ".txt");
+		if (txt_file.exists() && !txt_file.delete())
+			throw new IOException("Could not delete existing result file: " + txt_file.getName());
+		if (!txt_file.createNewFile())
+			throw new IOException("Could not create result file: " + txt_file.getName());
+
+		this.txt_writer = new BufferedWriter(new FileWriter(txt_file));
+
+		File csv_file = new File(outputFileName + ".txt");
+		if (csv_file.exists() && !csv_file.delete())
+			throw new IOException("Could not delete existing result file: " + csv_file.getName());
+		if (!csv_file.createNewFile())
+			throw new IOException("Could not create result file: " + csv_file.getName());
+
+		this.csv_writer = new CSVWriter(
+			new BufferedWriter(new FileWriter(csv_file)),
+			';', // separator
+			ICSVWriter.DEFAULT_QUOTE_CHARACTER, ICSVWriter.DEFAULT_ESCAPE_CHARACTER, ICSVWriter.DEFAULT_LINE_END
+		);
+		// write header
+		this.csv_writer.writeNext(new String[]{"Dependent_Table", "Dependent_Attributes", "Referenced_Table", "Referenced_Attributes"});
+		this.csv_writer.flush();
 	}
 
 	/////////////////
 	// Actor State //
 	/////////////////
 
-	private final BufferedWriter writer;
+	private final BufferedWriter txt_writer;
+	private final CSVWriter csv_writer;
 
 	////////////////////
 	// Actor Behavior //
@@ -87,9 +109,17 @@ public class ResultCollector extends AbstractBehavior<ResultCollector.Message> {
 		this.getContext().getLog().info("Received {} INDs!", message.getInclusionDependencies().size());
 
 		for (InclusionDependency ind : message.getInclusionDependencies()) {
-			this.writer.write(ind.toString());
-			this.writer.newLine();
+			this.txt_writer.write(ind.toString());
+			this.txt_writer.newLine();
+
+			this.csv_writer.writeNext(new String[]{
+				ind.getDependentTable(),
+				ind.getDependentColumn(),
+				ind.getReferencedTable(),
+				ind.getReferencedTable()});
 		}
+		this.txt_writer.flush();
+		this.csv_writer.flush();
 
 		return this;
 	}
@@ -97,13 +127,18 @@ public class ResultCollector extends AbstractBehavior<ResultCollector.Message> {
 	private Behavior<Message> handle(FinalizeMessage message) throws IOException {
 		this.getContext().getLog().info("Received FinalizeMessage!");
 
-		this.writer.flush();
+		this.txt_writer.flush();
+		this.csv_writer.flush();
+
 		this.getContext().getSystem().unsafeUpcast().tell(new Guardian.ShutdownMessage());
+
 		return this;
 	}
 
 	private Behavior<Message> handle(PostStop signal) throws IOException {
-		this.writer.close();
+		this.txt_writer.close();
+		this.csv_writer.close();
+
 		return this;
 	}
 }
