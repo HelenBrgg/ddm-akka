@@ -11,6 +11,7 @@ import de.ddm.actors.patterns.LargeMessageProxy;
 import de.ddm.serialization.AkkaSerializable;
 import de.ddm.structures.Column;
 import de.ddm.structures.InclusionDependency;
+import de.ddm.structures.Task;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -41,15 +42,16 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 		private static final long serialVersionUID = -4667745204456518160L;
 		ActorRef<LargeMessageProxy.Message> dependencyMinerLargeMessageProxy;
 
-		String tableNameA;
-		String tableNameB;
-		List<String> headerA;
-		List<String> headerB;
-		List<Column> columnsA;
-		List<Column> columnsB;
+		Task task;
+		Map<String, Set<String>> uniqueValuesA;
+		Map<String, Set<String>> uniqueValuesB;
+
+		private int getSetMemorySize(Set<String> set) {
+			return set.stream().mapToInt(value -> value.length() * 2).sum();
+		}
 
 		public int getMemorySize() {
-			return columnsA.stream().mapToInt(col -> col.getMemorySize()).sum() + columnsB.stream().mapToInt(col -> col.getMemorySize()).sum();
+			return uniqueValuesA.values().stream().mapToInt(this::getSetMemorySize).sum() + uniqueValuesB.values().stream().mapToInt(this::getSetMemorySize).sum();
 		}
 	}
 
@@ -97,44 +99,33 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 		return this;
 	}
 
-	private static Map<String, Set<String>> extractUniqueValues(List<String> header, List<Column> columns) {
-		Map<String, Set<String>> unique = new HashMap<>();
-		for (int i = 0; i < header.size(); ++i) {
-			unique.put(header.get(i), columns.get(i).getUniqueValues());
-		}
-		return unique;
-	}
-
 
 	private Behavior<Message> handle(TaskMessage message) {
 		this.getContext().getLog().info(
-			"Received task table {} with {} columns and {} lines, task table {} with {} columns and {} lines (memory size {})",
-			message.tableNameA, message.headerA.size(), message.columnsA.get(0).size(),
-			message.tableNameB, message.headerB.size(), message.columnsB.get(0).size(),
+			"Received task table {} with {} columns and {} unique values, task table {} with {} columns and {} unique values",
+			message.task.getTableNameA(), message.task.getColumnNamesA().size(), message.uniqueValuesA.size(),
+			message.task.getTableNameB(), message.task.getColumnNamesB().size(), message.uniqueValuesB.size(),
 			message.getMemorySize());
 
-		Map<String, Set<String>> uniqueValuesA = extractUniqueValues(message.headerA, message.columnsA);
-		Map<String, Set<String>> uniqueValuesB = extractUniqueValues(message.headerB, message.columnsB);
-
 		List<InclusionDependency> inclusionDeps = new ArrayList<>();
-		uniqueValuesA.forEach((columnA, setA) -> {
-			uniqueValuesB.forEach((columnB, setB) -> {
+		message.uniqueValuesA.forEach((columnA, setA) -> {
+			message.uniqueValuesB.forEach((columnB, setB) -> {
 				int cardinalityA = setA.size();
 				int cardinalityB = setB.size();
 
 				// NOTE both or none of these branches may be executed
 				if (cardinalityA <= cardinalityB && setB.containsAll(setA)) {
-					inclusionDeps.add(new InclusionDependency(message.tableNameA, message.tableNameB, columnA, columnB));
+					inclusionDeps.add(new InclusionDependency(message.task.getTableNameA(), message.task.getTableNameB(), columnA, columnB));
 				}
 				if (cardinalityB <= cardinalityA && setA.containsAll(setB)) {
-					inclusionDeps.add(new InclusionDependency(message.tableNameB, message.tableNameA, columnB, columnA));
+					inclusionDeps.add(new InclusionDependency(message.task.getTableNameB(), message.task.getTableNameA(), columnB, columnA));
 				}
 			});
 		});
 
 		this.getContext().getLog().info(
 			"Found {} INDs for table {} and table {}: {}",
-			inclusionDeps.size(), message.tableNameA, message.tableNameB, inclusionDeps);
+			inclusionDeps.size(), message.task.getTableNameA(), message.task.getTableNameB(), inclusionDeps);
 
 		LargeMessageProxy.LargeMessage completionMessage = new DependencyMiner.CompletionMessage(this.getContext().getSelf(), inclusionDeps);
 		this.largeMessageProxy.tell(new LargeMessageProxy.SendMessage(completionMessage, message.getDependencyMinerLargeMessageProxy()));

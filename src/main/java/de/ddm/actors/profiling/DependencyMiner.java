@@ -15,6 +15,7 @@ import de.ddm.serialization.AkkaSerializable;
 import de.ddm.singletons.InputConfigurationSingleton;
 import de.ddm.singletons.SystemConfigurationSingleton;
 import de.ddm.structures.InclusionDependency;
+import de.ddm.structures.Task;
 import de.ddm.structures.Column;
 import de.ddm.structures.LocalDataStorage;
 import lombok.AllArgsConstructor;
@@ -186,13 +187,18 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 			// this worker is idle
 
 			Task task = this.unassignedTasks.remove();
+			Map<String, Set<String>> uniqueValuesA = new HashMap<>();
+			Map<String, Set<String>> uniqueValuesB = new HashMap<>();
+			for (String colName: task.getColumnNamesA()) {
+				uniqueValuesA.put(colName, this.dataStorage.getColumn(task.getTableNameA(), colName).getUniqueValues());
+			}
+			for (String colName: task.getColumnNamesB()) {
+				uniqueValuesB.put(colName, this.dataStorage.getColumn(task.getTableNameB(), colName).getUniqueValues());
+			}
 
 			DependencyWorker.TaskMessage taskMessage = new DependencyWorker.TaskMessage(
 				this.largeMessageProxy,
-				task.tableNameA, task.tableNameB,
-				task.columnNamesA, task.columnNamesB,
-				task.columnNamesA.stream().map(colName -> this.dataStorage.getColumn(task.tableNameA, colName)).collect(Collectors.toList()),
-				task.columnNamesB.stream().map(colName -> this.dataStorage.getColumn(task.tableNameB, colName)).collect(Collectors.toList()));
+				task, uniqueValuesA, uniqueValuesB);
 
 			this.getContext().getLog().info("Delegated task {}, message has {} memory size", task, taskMessage.getMemorySize());;
 
@@ -201,26 +207,6 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		}
 
 		this.getContext().getLog().info("After task delegation: {} unassigned tasks", this.unassignedTasks.size());
-	}
-
-	// Rough estimate for how much memory space a table column takes up.
-	// Of course, an exact calculation is difficult to do in Java.
-	private static int columnMemorySize(List<String> column) {
-		return column.stream().mapToInt(cell -> cell.length()).sum();
-	}
-
-	@AllArgsConstructor
-	@Getter
-	private static class Task {
-		private String tableNameA;
-		private String tableNameB;
-		private List<String> columnNamesA;
-		private List<String> columnNamesB;
-
-		@Override
-		public String toString(){
-			return String.format("(%s%s,%s%s)", this.tableNameA, this.columnNamesA, this.tableNameB, this.columnNamesB);
-		}
 	}
 
 	private static class PartialTableTaskGenerator {
