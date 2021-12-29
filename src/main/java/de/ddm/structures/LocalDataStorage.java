@@ -3,11 +3,11 @@ package de.ddm.structures;
 import java.util.*;
 import java.util.stream.Stream;
 
-public class ColumnStorage {
+public class LocalDataStorage {
     Map<String, List<String>> headerList = new HashMap<>();
     Map<String, List<Column>> contentList = new HashMap<>();
 
-    public ColumnStorage() {}
+    public LocalDataStorage() {}
 
     public void addTable(String tableName, List<String> header) {
         this.headerList.put(tableName, header);
@@ -54,7 +54,7 @@ public class ColumnStorage {
     }
 
     public static void main(String args[]) {
-        ColumnStorage store = new ColumnStorage();
+        LocalDataStorage store = new LocalDataStorage();
         
         store.addTable("1", Arrays.asList("A","B", "C", "D"));
         store.addRow("1", Arrays.asList("e","f", "g", "h"));

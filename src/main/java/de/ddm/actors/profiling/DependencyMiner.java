@@ -16,7 +16,7 @@ import de.ddm.singletons.InputConfigurationSingleton;
 import de.ddm.singletons.SystemConfigurationSingleton;
 import de.ddm.structures.InclusionDependency;
 import de.ddm.structures.Column;
-import de.ddm.structures.ColumnStorage;
+import de.ddm.structures.LocalDataStorage;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -116,7 +116,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
 	private final boolean discoverNaryDependencies;
 	private final File[] inputFiles;
-	private final ColumnStorage dataStorage = new ColumnStorage();
+	private final LocalDataStorage dataStorage = new LocalDataStorage();
 	private final boolean[] finishedReading;
 
 	private final List<ActorRef<InputReader.Message>> inputReaders;
@@ -224,7 +224,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	}
 
 	private static class PartialTableTaskGenerator {
-		private ColumnStorage dataStorage;
+		private LocalDataStorage dataStorage;
 		private final int memoryBudget;
 
 		private String tableNameA;
@@ -236,7 +236,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		private List<String> taskHeaderB = new ArrayList<>();
 		private List<Task> generatedTasks = new ArrayList<>();
 
-		private PartialTableTaskGenerator(ColumnStorage dataStorage, int memoryBudget, String tableNameA, String tableNameB){
+		private PartialTableTaskGenerator(LocalDataStorage dataStorage, int memoryBudget, String tableNameA, String tableNameB){
 			this.dataStorage = dataStorage;
 			this.memoryBudget = memoryBudget;
 			this.tableNameA = tableNameA;
@@ -293,7 +293,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 			this.runTableBGeneration();
 		}
 
-		public static List<Task> run(ColumnStorage dataStorage, int memoryBudget, String tableNameA, String tableNameB){
+		public static List<Task> run(LocalDataStorage dataStorage, int memoryBudget, String tableNameA, String tableNameB){
 			PartialTableTaskGenerator gen = new PartialTableTaskGenerator(dataStorage, memoryBudget, tableNameA, tableNameB);
 			gen.runTableAGeneration();
 			return gen.generatedTasks;
