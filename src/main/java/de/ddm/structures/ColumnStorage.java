@@ -1,21 +1,25 @@
 package de.ddm.structures;
 
 import java.util.*;
+import java.util.stream.Stream;
 
-// TODO we should optimize this to store data in column-order as well.
 public class ColumnStorage {
-    Map<String, List<String>> headerList = new HashMap<String, List<String>>();
-    Map<String, List<List<String>>> contentList = new HashMap<String, List<List<String>>>();
+    Map<String, List<String>> headerList = new HashMap<>();
+    Map<String, List<Column>> contentList = new HashMap<>();
 
     public ColumnStorage() {}
 
     public void addTable(String tableName, List<String> header) {
         this.headerList.put(tableName, header);
-        this.contentList.put(tableName, new ArrayList<List<String>>());
+
+        List<Column> content = new ArrayList<>();
+        for (String colName : header)
+            content.add(new Column());
+        this.contentList.put(tableName, content);
     }
 
     public List<String> getTableNames() {
-        List<String> tableNames = new ArrayList<String>();
+        List<String> tableNames = new ArrayList<>();
         for (String key : headerList.keySet()) {
             tableNames.add(key);
         }
@@ -26,19 +30,27 @@ public class ColumnStorage {
         return this.headerList.get(tableName);
     }
 
-    public List<String> getColumn(String tableName, String columnName) {
-        List<List<String>> table = this.contentList.get(tableName);
-        int index = headerList.get(tableName).indexOf(columnName);
-
-        List<String> column = new ArrayList<String>(table.size());
-        for (List<String> row : table) {
-            column.add(row.get(index));
+    public void addRow(String tableName, List<String> values) {
+        assert values.size() == headerList.size() : "row length does not match header length";
+        List<Column> content = this.contentList.get(tableName);
+        for (int i = 0; i < values.size(); ++i) {
+            content.get(i).add(values.get(i));
         }
-        return column;
     }
 
-    public void addRow(String tableName, List<String> values) {
-        this.contentList.get(tableName).add(values);
+    public void addRows(String tableName, Stream<List<String>> rows) {
+        List<Column> content = this.contentList.get(tableName);
+        rows.forEach(values -> {
+            assert values.size() == headerList.size() : "row length does not match header length";
+            for (int i = 0; i < values.size(); ++i) {
+                content.get(i).add(values.get(i));
+            }
+        });
+    }
+
+    public Column getColumn(String tableName, String columnName) {
+        int index = headerList.get(tableName).indexOf(columnName);
+        return this.contentList.get(tableName).get(index);
     }
 
     public static void main(String args[]) {

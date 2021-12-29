@@ -9,6 +9,7 @@ import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.receptionist.Receptionist;
 import de.ddm.actors.patterns.LargeMessageProxy;
 import de.ddm.serialization.AkkaSerializable;
+import de.ddm.structures.Column;
 import de.ddm.structures.InclusionDependency;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -44,8 +45,12 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 		String tableNameB;
 		List<String> headerA;
 		List<String> headerB;
-		List<List<String>> columnsA;
-		List<List<String>> columnsB;
+		List<Column> columnsA;
+		List<Column> columnsB;
+
+		public int getMemorySize() {
+			return columnsA.stream().mapToInt(col -> col.getMemorySize()).sum() + columnsB.stream().mapToInt(col -> col.getMemorySize()).sum();
+		}
 	}
 
 	////////////////////////
@@ -92,10 +97,10 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 		return this;
 	}
 
-	private static Map<String, Set<String>> extractUniqueValues(List<String> header, List<List<String>> columns) {
+	private static Map<String, Set<String>> extractUniqueValues(List<String> header, List<Column> columns) {
 		Map<String, Set<String>> unique = new HashMap<>();
 		for (int i = 0; i < header.size(); ++i) {
-			unique.put(header.get(i), new HashSet<>(columns.get(i)));
+			unique.put(header.get(i), columns.get(i).getUniqueValues());
 		}
 		return unique;
 	}
@@ -103,9 +108,10 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 
 	private Behavior<Message> handle(TaskMessage message) {
 		this.getContext().getLog().info(
-			"Received (partial) table {} with {} columns and {} lines, table {} with {} columns and {} lines",
+			"Received task table {} with {} columns and {} lines, task table {} with {} columns and {} lines (memory size {})",
 			message.tableNameA, message.headerA.size(), message.columnsA.get(0).size(),
-			message.tableNameB, message.headerB.size(), message.columnsB.get(0).size()); // TODO return early on empty columns
+			message.tableNameB, message.headerB.size(), message.columnsB.get(0).size(),
+			message.getMemorySize());
 
 		Map<String, Set<String>> uniqueValuesA = extractUniqueValues(message.headerA, message.columnsA);
 		Map<String, Set<String>> uniqueValuesB = extractUniqueValues(message.headerB, message.columnsB);

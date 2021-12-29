@@ -15,6 +15,7 @@ import de.ddm.serialization.AkkaSerializable;
 import de.ddm.singletons.InputConfigurationSingleton;
 import de.ddm.singletons.SystemConfigurationSingleton;
 import de.ddm.structures.InclusionDependency;
+import de.ddm.structures.Column;
 import de.ddm.structures.ColumnStorage;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -186,14 +187,14 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
 			Task task = this.unassignedTasks.remove();
 
-			this.getContext().getLog().info("Delegated task {}", task);
-
 			DependencyWorker.TaskMessage taskMessage = new DependencyWorker.TaskMessage(
 				this.largeMessageProxy,
 				task.tableNameA, task.tableNameB,
 				task.columnNamesA, task.columnNamesB,
 				task.columnNamesA.stream().map(colName -> this.dataStorage.getColumn(task.tableNameA, colName)).collect(Collectors.toList()),
 				task.columnNamesB.stream().map(colName -> this.dataStorage.getColumn(task.tableNameB, colName)).collect(Collectors.toList()));
+
+			this.getContext().getLog().info("Delegated task {}, message has {} memory size", task, taskMessage.getMemorySize());;
 
 			this.largeMessageProxy.tell(new LargeMessageProxy.SendMessage (taskMessage, workerProxy));
 			this.busyWorkers.put(worker, task);
@@ -253,11 +254,11 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		private void runTableBGeneration(){
 			int memoryUsed = 0;
 			for (String columnNameB: this.headerB) {
-				List<String> columnB = this.dataStorage.getColumn(tableNameB, columnNameB);
-				int columnSizeB = columnMemorySize(columnB);
+				Column columnB = this.dataStorage.getColumn(tableNameB, columnNameB);
 
-				// if we exceed memory budget, we want to create partial tables
-				if (memoryUsed + columnSizeB > this.memoryBudget / 2) {
+				// If we exceed memory budget, we want to create partial-table tasks
+				// The `memoryUsed != 0` condition ensures that we always use at least 1 column.
+				if (memoryUsed != 0 && memoryUsed + columnB.getMemorySize() > this.memoryBudget / 2) {
 					this.generateTask();
 					this.taskHeaderB = new ArrayList<>();
 					memoryUsed = 0;
@@ -266,7 +267,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 				this.taskHeaderB.add(columnNameB);
 				// FIXME memory exhaustion
 				// this.taskColumnsB.add(columnB);
-				memoryUsed += columnSizeB;
+				memoryUsed += columnB.getMemorySize();
 			}
 			this.generateTask();
 		}
@@ -274,11 +275,11 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		private void runTableAGeneration(){
 			int memoryUsed = 0;
 			for (String columnNameA: this.headerA) {
-				List<String> columnA = this.dataStorage.getColumn(tableNameA, columnNameA);
-				int columnSizeA = columnMemorySize(columnA);
+				Column columnA = this.dataStorage.getColumn(tableNameA, columnNameA);
 
-				// if we exceed memory budget, we want to create partial tables
-				if (memoryUsed + columnSizeA > this.memoryBudget / 2) {
+				// If we exceed memory budget, we want to create partial-table tasks.
+				// The `memoryUsed != 0` condition ensures that we always use at least 1 column.
+				if (memoryUsed != 0 && memoryUsed + columnA.getMemorySize() > this.memoryBudget / 2) {
 					this.runTableBGeneration();
 					this.taskHeaderA = new ArrayList<>();
 					memoryUsed = 0;
@@ -287,7 +288,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 				this.taskHeaderA.add(columnNameA);
 				// FIXME memory exhaustion
 				// this.taskColumnsA.add(columnA);
-				memoryUsed += columnSizeA;
+				memoryUsed += columnA.getMemorySize();
 			}
 			this.runTableBGeneration();
 		}
@@ -316,7 +317,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 					String otherTableName = this.inputFiles[id].getName();
 					List<Task> tasks = PartialTableTaskGenerator.run(
 						dataStorage,
-						100 * 1024 * 1024, // 100 mib
+						60 * 1024 * 1024, // target 60 mib
 						tableName,
 						otherTableName);
 
@@ -330,9 +331,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 			// new tasks available for idle workers
 			delegateTasks();
 		} else {
-			for (String[] row : message.batch) {
-				this.dataStorage.addRow(tableName, Arrays.asList(row));
-			}
+			this.dataStorage.addRows(tableName, message.batch.stream().map(row -> List.of(row)));
 
 			// follow-up ReadBatchMessage for current input reader
 			this.inputReaders.get(message.id).tell(new InputReader.ReadBatchMessage(this.getContext().getSelf()));
