@@ -93,6 +93,8 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	private DependencyMiner(ActorContext<Message> context) {
 		super(context);
 		this.discoverNaryDependencies = SystemConfigurationSingleton.get().isHardMode();
+
+		this.memUsage = 0;
 		this.inputFiles = InputConfigurationSingleton.get().getInputFiles();
 		this.finishedReading = new boolean[this.inputFiles.length];
 
@@ -111,6 +113,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
 	private long startTime;
 
+	private int memUsage;
 	private final boolean discoverNaryDependencies;
 	private final File[] inputFiles;
 	private final LocalDataStorage dataStorage = new LocalDataStorage();
@@ -171,11 +174,12 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		this.getContext().getLog().info("Before task delegation: {} unassigned tasks", this.unassignedTasks.size());
 
 		for (int workerIdx = 0; workerIdx < this.dependencyWorkers.size(); ++workerIdx){
-		    ActorRef<DependencyWorker.Message> worker = this.dependencyWorkers.get(workerIdx);
-		    ActorRef<LargeMessageProxy.Message> workerProxy = this.dependencyWorkerLargeProxies.get(workerIdx);
 			if (this.unassignedTasks.isEmpty()) {
 				break; // no more unassigned tasks
 			}
+
+		    ActorRef<DependencyWorker.Message> worker = this.dependencyWorkers.get(workerIdx);
+		    ActorRef<LargeMessageProxy.Message> workerProxy = this.dependencyWorkerLargeProxies.get(workerIdx);
 
 			if (this.busyWorkers.containsKey(worker)) {
 				continue; // this worker is busy
@@ -183,6 +187,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 			// this worker is idle
 
 			Task task = this.unassignedTasks.remove();
+
 			Map<String, Set<String>> uniqueValuesA = new HashMap<>();
 			Map<String, Set<String>> uniqueValuesB = new HashMap<>();
 			for (String colName: task.getColumnNamesA()) {
