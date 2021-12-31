@@ -10,22 +10,18 @@ import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.receptionist.Receptionist;
 import akka.actor.typed.receptionist.ServiceKey;
 import de.ddm.actors.patterns.LargeMessageProxy;
-import de.ddm.actors.profiling.DependencyWorker.TaskMessage;
-import de.ddm.serialization.AkkaSerializable;
 import de.ddm.singletons.InputConfigurationSingleton;
 import de.ddm.singletons.SystemConfigurationSingleton;
 import de.ddm.structures.InclusionDependency;
 import de.ddm.structures.Task;
-import de.ddm.structures.Column;
+import de.ddm.structures.TaskGenerator;
 import de.ddm.structures.LocalDataStorage;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.EqualsAndHashCode;
 
 import java.io.File;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
@@ -33,7 +29,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 	// Actor Messages //
 	////////////////////
 
-	public interface Message extends AkkaSerializable, LargeMessageProxy.LargeMessage {
+	public interface Message extends LargeMessageProxy.LargeMessage {
 	}
 
 	@NoArgsConstructor
@@ -209,83 +205,6 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		this.getContext().getLog().info("After task delegation: {} unassigned tasks", this.unassignedTasks.size());
 	}
 
-	private static class PartialTableTaskGenerator {
-		private LocalDataStorage dataStorage;
-		private final int memoryBudget;
-
-		private String tableNameA;
-		private String tableNameB;
-		private List<String> headerA;
-		private List<String> headerB;
-
-		private List<String> taskHeaderA = new ArrayList<>();
-		private List<String> taskHeaderB = new ArrayList<>();
-		private List<Task> generatedTasks = new ArrayList<>();
-
-		private PartialTableTaskGenerator(LocalDataStorage dataStorage, int memoryBudget, String tableNameA, String tableNameB){
-			this.dataStorage = dataStorage;
-			this.memoryBudget = memoryBudget;
-			this.tableNameA = tableNameA;
-			this.tableNameB = tableNameB;
-			this.headerA = this.dataStorage.getHeader(tableNameA);
-			this.headerB = this.dataStorage.getHeader(tableNameB);
-		}
-
-		private void generateTask(){
-			this.generatedTasks.add(new Task(
-				this.tableNameA, this.tableNameB,
-				this.taskHeaderA, this.taskHeaderB));
-		}
-
-		private void runTableBGeneration(){
-			int memoryUsed = 0;
-			for (String columnNameB: this.headerB) {
-				Column columnB = this.dataStorage.getColumn(tableNameB, columnNameB);
-
-				// If we exceed memory budget, we want to create partial-table tasks
-				// The `memoryUsed != 0` condition ensures that we always use at least 1 column.
-				if (memoryUsed != 0 && memoryUsed + columnB.getMemorySize() > this.memoryBudget / 2) {
-					this.generateTask();
-					this.taskHeaderB = new ArrayList<>();
-					memoryUsed = 0;
-				}
-
-				this.taskHeaderB.add(columnNameB);
-				// FIXME memory exhaustion
-				// this.taskColumnsB.add(columnB);
-				memoryUsed += columnB.getMemorySize();
-			}
-			this.generateTask();
-		}
-
-		private void runTableAGeneration(){
-			int memoryUsed = 0;
-			for (String columnNameA: this.headerA) {
-				Column columnA = this.dataStorage.getColumn(tableNameA, columnNameA);
-
-				// If we exceed memory budget, we want to create partial-table tasks.
-				// The `memoryUsed != 0` condition ensures that we always use at least 1 column.
-				if (memoryUsed != 0 && memoryUsed + columnA.getMemorySize() > this.memoryBudget / 2) {
-					this.runTableBGeneration();
-					this.taskHeaderA = new ArrayList<>();
-					memoryUsed = 0;
-				}
-
-				this.taskHeaderA.add(columnNameA);
-				// FIXME memory exhaustion
-				// this.taskColumnsA.add(columnA);
-				memoryUsed += columnA.getMemorySize();
-			}
-			this.runTableBGeneration();
-		}
-
-		public static List<Task> run(LocalDataStorage dataStorage, int memoryBudget, String tableNameA, String tableNameB){
-			PartialTableTaskGenerator gen = new PartialTableTaskGenerator(dataStorage, memoryBudget, tableNameA, tableNameB);
-			gen.runTableAGeneration();
-			return gen.generatedTasks;
-		}
-	}
-
 	private Behavior<Message> handle(BatchMessage message) {
 		String tableName = this.inputFiles[message.id].getName();
 
@@ -301,7 +220,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 				// we want to check against every other completed table
 				if (this.finishedReading[id]) {
 					String otherTableName = this.inputFiles[id].getName();
-					List<Task> tasks = PartialTableTaskGenerator.run(
+					List<Task> tasks = TaskGenerator.run(
 						dataStorage,
 						60 * 1024 * 1024, // target 60 mib
 						tableName,

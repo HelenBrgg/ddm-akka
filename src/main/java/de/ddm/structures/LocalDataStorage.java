@@ -31,8 +31,10 @@ public class LocalDataStorage {
     }
 
     public void addRow(String tableName, List<String> values) {
-        assert values.size() == headerList.size() : "row length does not match header length";
         List<Column> content = this.contentList.get(tableName);
+        assert values.size() == content.size()
+            : "row length " + values.size() + " does not match header length " + content.size();
+
         for (int i = 0; i < values.size(); ++i) {
             content.get(i).add(values.get(i));
         }
@@ -41,7 +43,9 @@ public class LocalDataStorage {
     public void addRows(String tableName, Stream<List<String>> rows) {
         List<Column> content = this.contentList.get(tableName);
         rows.forEach(values -> {
-            assert values.size() == headerList.size() : "row length does not match header length";
+            assert values.size() == content.size()
+            : "row length " + values.size() + " does not match header length " + content.size();
+
             for (int i = 0; i < values.size(); ++i) {
                 content.get(i).add(values.get(i));
             }
@@ -60,9 +64,6 @@ public class LocalDataStorage {
         store.addRow("1", Arrays.asList("e","f", "g", "h"));
         store.addRow("1", Arrays.asList("i","j", "k", "l"));
         store.addRow("1", Arrays.asList("x","y", "z", "w"));
-
-        store.addTable("1", Arrays.asList("A","B", "C", "D"));
-        store.addRow("1", Arrays.asList("n","m", "l", "k"));
 
         System.out.println(store.getColumn("1", "B").toString());
     }
