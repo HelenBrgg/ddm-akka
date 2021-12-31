@@ -69,7 +69,7 @@ public class ResultCollector extends AbstractBehavior<ResultCollector.Message> {
 
 		this.txt_writer = new BufferedWriter(new FileWriter(txt_file));
 
-		File csv_file = new File(outputFileName + ".txt");
+		File csv_file = new File(outputFileName + ".csv");
 		if (csv_file.exists() && !csv_file.delete())
 			throw new IOException("Could not delete existing result file: " + csv_file.getName());
 		if (!csv_file.createNewFile())
