@@ -116,7 +116,7 @@ public class ResultCollector extends AbstractBehavior<ResultCollector.Message> {
 				ind.getDependentTable(),
 				ind.getDependentColumn(),
 				ind.getReferencedTable(),
-				ind.getReferencedTable()});
+				ind.getReferencedColumn()});
 		}
 		this.txt_writer.flush();
 		this.csv_writer.flush();
