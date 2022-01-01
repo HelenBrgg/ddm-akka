@@ -37,10 +37,10 @@ class Column {
 }
 
 class LocalDataStorage {
-    + void addTable(String tableName, List<String> columnNames)
-    + void addRow(String tableName, List<String> rowValues)
-    + List<String> getColumnNames(String tableName)
-    + void getColumn(String tableName, String columnName)
+    + void addTable(\n    String tableName,\n   List<String> columnNames)
+    + void addRow(\n    String tableName,\n    List<String> rowValues)
+    + List<String> getColumnNames(\n    String tableName)
+    + void getColumn(\n    String tableName,\n    String columnName)
 }
 
 LocalDataStorage *-- "0..n" Column
@@ -59,3 +59,4 @@ together {
     CombinationGenerator ..> InclusionDependency: analyses >
     CombinationGenerator .l.> TaskGenerator: invokes >
 }
+
