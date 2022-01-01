@@ -83,23 +83,7 @@ Once a table has been fully read, it will be paired up with each previously full
 
 A `Task` is a simple data structure, describing two tables and two respective selection of their columns which are to be checked for unary inclusion dependencies. 
 
-```mermaid
-classDiagram
-     class Task {
-         +String tableNameA
-         +String tableNameB
-         +List<String> columnNamesA
-         +List<String> columnNamesB
-     }
-     
-     class TaskMessage {
-         +Task task
-         +List<Set<String>> distinctValuesA
-         +List<Set<String>> distinctValuesB
-     }
-
-     Task *-- TaskMessage
-```
+![](./docs/structures.svg)
 
 Each `Task` will be turned into a `TaskMessage` when delegated. __NOTE: Currently, a Task message contains all unique values of the list columns in full. Once we get an incremental algorithm, as well as the LocalDataStorage actor working, our strategy of task generation may change significally.__
 In order for `DependencyWorker.TaskMessage`'s to not become too large (which can very quickly trigger out-of-memory errors in Akka's serialization layer), the `Task`s will be generated to achieve a certain size limit (currently 80mb).
@@ -134,9 +118,9 @@ In total, `(T1[*], T2[*])` will be covered, with redundant coverage of both `T1`
 
 ### 3. Delegating tasks
 
-The `DependencyMiner` keeps track of which `DependencyWorker` are busy and which are idle. Idle `DependencyWorker`s will be assigned a `Task`, which they will receive in a `TaskMessage`. While the `DependencyWorker` is busy, it will receive no other `Task`s.
+__Master-Slave pattern__: The `DependencyMiner` keeps track of which `DependencyWorker` are busy and which are idle. Idle `DependencyWorker`s will be assigned a `Task`, which they will receive in a `TaskMessage`. While the `DependencyWorker` is busy, it will receive no other `Task`s.
 
-When a `DependencyMiner` receives a `TaskMessage`, it checks for INDs with the following algorithm:
+When a `DependencyWorker` receives a `TaskMessage`, it checks for INDs with the following algorithm:
 
 ```python
 for columnNameA, valueSetA in zip(columNamesA, distinctValuesA):

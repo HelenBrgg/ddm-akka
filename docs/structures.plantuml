@@ -1,0 +1,61 @@
+
+together {
+     class Task << (D,orchid) dataclass >> {
+         +String tableNameA:
+         +String tableNameB
+         +String columnNamesA
+         +String columnNamesB
+     }
+     
+     class InclusionDependency << (D,orchid) dataclass >> {
+         +String dependentTable
+         +String referencedTable
+         +String dependentColumn
+         +String referencedColumn
+     }
+}
+
+together {
+    class TaskMessage << (M,lightblue) DependencyWorker.Message >> {
+       +Task\t\t\t\ttask 
+       +List<Set<String>>\tdistinctValuesA
+       +List<Set<String>>\tdistinctValuesB
+    }
+
+    TaskMessage o-- "1" Task
+     
+    class CompletionMessage << (M,lightblue) DependencyMiner.Message >> {
+        +List<InclusionDependency> results
+    }
+     
+    InclusionDependency "0..n" --* CompletionMessage
+}
+
+class Column {
+    + void add(String value)
+    + Stream<String> stream()
+}
+
+class LocalDataStorage {
+    + void addTable(String tableName, List<String> columnNames)
+    + void addRow(String tableName, List<String> rowValues)
+    + List<String> getColumnNames(String tableName)
+    + void getColumn(String tableName, String columnName)
+}
+
+LocalDataStorage *-- "0..n" Column
+
+together {
+    class TaskGenerator {
+        + static List<Task> run(\n    LocalDataStorage data,\n    String tableA,\n    String tableB, \n    List<String> columnNamesA,\n    List<String> columnNamesB)
+    }
+    TaskGenerator ..> Task : creates >
+    TaskGenerator ..> LocalDataStorage : queries >
+
+    class CombinationGenerator {
+        + static List<Task> run(\n    LocalStorageData data,\n    List<InclusionDependency> deps) 
+    }
+
+    CombinationGenerator ..> InclusionDependency: analyses >
+    CombinationGenerator .l.> TaskGenerator: invokes >
+}
