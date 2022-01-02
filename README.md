@@ -53,7 +53,7 @@ After reading in the table headers, the table rows will be read in batches until
 
 In order to reduce memory usage, individual table columns will be stored in an optimized data structure called `Column`.
 
-When Column receives a value, it will compare it to all distinct values received so far and if it is already known, only store an index to it. These indicies will be used to read back the values in order. 
+When Column receives a value, it will compare it to all distinct values received so far and if it is already known, only store an index to it. These indices will be used to read back the values in order. 
 
 ```
 values stored in order:
@@ -66,7 +66,7 @@ values stored in order:
 
 values stored in Column:
 
-   distinct_values    indicies    readValue(index)
+   distinct_values    indices    readValue(index)
       |"horse"|         |0|        => "horse"
       |"dog"  |         |1|        => "dog"
       |"cat"  |         |1|        => "dog"
@@ -75,17 +75,17 @@ values stored in Column:
 
 ```
 
-All data of all tables will be stored in the `LocalDataStorage` class. __NOTE: Currently, this is only an utility structure used by `DependencyMiner` - but in future it will be expanded to become a proper Akka actor. Each system will receive one such an actor to actively query and store data which it specifically requires.__
+All data of all tables will be stored in the `LocalDataStorage` class. __NOTE: Currently, this is only an utility structure used by `DependencyMiner` - but in future it will be expanded to become a proper Akka actor. Each system will receive one such actor to actively query and store data which it specifically requires.__
 
 ### 2. Generating tasks
 
 Once a table has been fully read, it will be paired up with each previously fully-read table and passed on to the `TaskGenerator`. The `TaskGenerator` will generate one or more `Task`s based on each pairing.
 
-A `Task` is a simple data structure, describing two tables and two respective selection of their columns which are to be checked for unary inclusion dependencies. 
+A `Task` is a simple data structure, describing two tables and two respective selections of their columns which are to be checked for unary inclusion dependencies. 
 
 ![](./docs/structures.svg)
 
-Each `Task` will be turned into a `TaskMessage` when delegated. __NOTE: Currently, a Task message contains all unique values of the list columns in full. Once we get an incremental algorithm, as well as the LocalDataStorage actor working, our strategy of task generation may change significally.__
+Each `Task` will be turned into a `TaskMessage` when delegated. __NOTE: Currently, a Task message contains all unique values of the list columns in full. Once we get an incremental algorithm, as well as the LocalDataStorage actor working, our strategy of task generation may change significantly.__
 In order for `DependencyWorker.TaskMessage`'s to not become too large (which can very quickly trigger out-of-memory errors in Akka's serialization layer), the `Task`s will be generated to achieve a certain size limit (currently 80mb).
 
 __NOTE: The current implementation of `TaskGenerator` is imprecise and does not fully utilize the size limit.__
@@ -118,7 +118,7 @@ In total, `(T1[*], T2[*])` will be covered, with redundant coverage of both `T1`
 
 ### 3. Delegating tasks
 
-__Master-Slave pattern__: The `DependencyMiner` keeps track of which `DependencyWorker` are busy and which are idle. Idle `DependencyWorker`s will be assigned a `Task`, which they will receive in a `TaskMessage`. While the `DependencyWorker` is busy, it will receive no other `Task`s.
+__Master-Worker pattern__: The `DependencyMiner` keeps track of which `DependencyWorker` are busy and which are idle. Idle `DependencyWorker`s will be assigned a `Task`, which they will receive in a `TaskMessage`. While the `DependencyWorker` is busy, it will receive no other `Task`s.
 
 When a `DependencyWorker` receives a `TaskMessage`, it checks for INDs with the following algorithm:
 
