@@ -17,13 +17,23 @@ Then, extract the sample dataset:
 cd data && unzip TPCH.zip && cd ..
 ```
 
-Now the master system (with 4 workers) can be started like this :
+Now the master system (with 4 workers) can be started like this:
 
 ```sh
 java -Xmx3g -ea -cp target/ddm-akka-1.0.jar de.ddm.Main master
 ```
 
-The system will run a while and shut down after it is finished. You should receive output like this:
+To run the master system and a dedicated worker system on a different host:
+
+```sh
+# on the master system host
+java -Xmx3g -ea -cp target/ddm-akka-1.0.jar de.ddm.Main master -w 0 -h MASTER_P
+
+# on the worker system host
+java -Xmx3g -ea -cp target/ddm-akka-1.0.jar de.ddm.Main worker -w 0 -mh MASTER_IP -h WORKER_IP
+```
+
+The master system will run a while and shut down after it is finished. You should receive output like this:
 
 ```sh
                 akka://ddm/user/master/dependencyMiner| Before task delegation: 0 unassigned tasks
@@ -85,10 +95,15 @@ A `Task` is a simple data structure, describing two tables and two respective se
 
 ![](./docs/structures.svg)
 
-A task `(T1[A,B], T2[X,Y])` for example will instruct to 
+A task `(T1[A,B], T2[X,Y])` for example will instruct to check for the following 8 INDs:
 
-Each `Task` will be turned into a `TaskMessage` when delegated. __NOTE: Currently, a Task message contains all unique values of the list columns in full. Once we get an incremental algorithm, as well as the LocalDataStorage actor working, our strategy of task generation may change significantly.__
-In order for `DependencyWorker.TaskMessage`'s to not become too large (which can very quickly trigger out-of-memory errors in Akka's serialization layer), the `Task`s will be generated to achieve a certain size limit (currently 80mb, note however the current implementation is imprecise):
+```
+T1 → T2:  A ⊆ X,  B ⊆ X,  A ⊆ Y,  B ⊆ Y
+T2 → T1:  X ⊆ A,  X ⊆ B,  Y ⊆ A,  Y ⊆ B
+```
+
+Each `Task` will be turned into a `TaskMessage` when delegated. Currently, a Task message contains all distinct values of the listed columns in full. (__NOTE: Once we get an incremental algorithm, as well as the LocalDataStorage actor working, our strategy of task generation may change significantly.__
+In order for a  `TaskMessage` to not become too large (which can very quickly trigger out-of-memory errors in Akka's serialization layer), the `Task`s will be generated for them to achieve a certain size limit (currently 80mb, note however the current implementation is imprecise):
 
 ### Case 1
 
