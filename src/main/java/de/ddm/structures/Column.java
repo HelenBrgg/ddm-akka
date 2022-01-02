@@ -6,12 +6,9 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
-import de.ddm.serialization.AkkaSerializable;
+public class Column {
 
-// Table column which uses optimized skip-list storage
-public class Column implements AkkaSerializable {
-
-    // We store unique values in two ways:
+    // We store distinct values in two ways:
     // 1. in an array in order in which they occur
     // 2. in a hashmap with above array position for fast insertion (Array::indexOf gets very slow for large workloads)
     private List<String> valuesByPosition = new ArrayList<>();
@@ -51,7 +48,7 @@ public class Column implements AkkaSerializable {
         return this.memorySize;
     }
 
-    public Set<String> getUniqueValues() {
+    public Set<String> getDistinctValues() {
         return new HashSet<>(this.valuesByPosition); // TODO can we do this in an more optimzied way?
     }
 
@@ -59,26 +56,5 @@ public class Column implements AkkaSerializable {
     public String toString(){
         // NOTE this is probably quite costly for large columns... but it shouldn't be used for large columns, anyway.
         return this.stream().toArray().toString();
-    }
-
-    /* we implement custom serialization so we don't serialize the redundant valuesWithPosition field */
-
-    // TODO make use of this?
-    private static final long serialVersionUID = 7829146444143571165L;
-
-    @SuppressWarnings("unchecked")
-    private void readObject(ObjectInputStream input) throws ClassNotFoundException, IOException {       
-        this.valuesByPosition = (List<String>) input.readObject();
-        this.data = (List<Integer>) input.readObject();
-        this.memorySize = input.readInt();
-
-        // TODO re-construct valuesWithPosition... however, if we only want to read, we don't need it?
-        //      how about creating an ImmutableColumn class, which doesn't contain it?
-    }
- 
-    private void writeObject(ObjectOutputStream output) throws IOException {
-        output.writeObject(this.valuesByPosition);
-        output.writeObject(this.data);
-        output.writeInt(this.memorySize);
     }
 }

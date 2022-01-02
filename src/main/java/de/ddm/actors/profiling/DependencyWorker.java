@@ -43,15 +43,15 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 		ActorRef<LargeMessageProxy.Message> dependencyMinerLargeMessageProxy;
 
 		Task task;
-		Map<String, Set<String>> uniqueValuesA;
-		Map<String, Set<String>> uniqueValuesB;
+		Map<String, Set<String>> distinctValuesA;
+		Map<String, Set<String>> distinctValuesB;
 
 		private int getSetMemorySize(Set<String> set) {
 			return set.stream().mapToInt(value -> value.length() * 2).sum();
 		}
 
 		public int getMemorySize() {
-			return uniqueValuesA.values().stream().mapToInt(this::getSetMemorySize).sum() + uniqueValuesB.values().stream().mapToInt(this::getSetMemorySize).sum();
+			return distinctValuesA.values().stream().mapToInt(this::getSetMemorySize).sum() + distinctValuesB.values().stream().mapToInt(this::getSetMemorySize).sum();
 		}
 	}
 
@@ -102,14 +102,14 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 
 	private Behavior<Message> handle(TaskMessage message) {
 		this.getContext().getLog().info(
-			"Received task table {} with {} columns and {} unique values, task table {} with {} columns and {} unique values",
-			message.task.getTableNameA(), message.task.getColumnNamesA().size(), message.uniqueValuesA.size(),
-			message.task.getTableNameB(), message.task.getColumnNamesB().size(), message.uniqueValuesB.size(),
+			"Received task table {} with {} columns and {} distinct values, task table {} with {} columns and {} distinct values",
+			message.task.getTableNameA(), message.task.getColumnNamesA().size(), message.distinctValuesA.values().stream().mapToInt(set -> set.size()).sum(),
+			message.task.getTableNameB(), message.task.getColumnNamesB().size(), message.distinctValuesB.values().stream().mapToInt(set -> set.size()).sum(),
 			message.getMemorySize());
 
 		List<InclusionDependency> inclusionDeps = new ArrayList<>();
-		message.uniqueValuesA.forEach((columnA, setA) -> {
-			message.uniqueValuesB.forEach((columnB, setB) -> {
+		message.distinctValuesA.forEach((columnA, setA) -> {
+			message.distinctValuesB.forEach((columnB, setB) -> {
 				int cardinalityA = setA.size();
 				int cardinalityB = setB.size();
 

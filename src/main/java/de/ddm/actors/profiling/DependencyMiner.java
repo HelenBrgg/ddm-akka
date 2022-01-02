@@ -188,18 +188,18 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
 			Task task = this.unassignedTasks.remove();
 
-			Map<String, Set<String>> uniqueValuesA = new HashMap<>();
-			Map<String, Set<String>> uniqueValuesB = new HashMap<>();
+			Map<String, Set<String>> distinctValuesA = new HashMap<>();
+			Map<String, Set<String>> distinctValuesB = new HashMap<>();
 			for (String colName: task.getColumnNamesA()) {
-				uniqueValuesA.put(colName, this.dataStorage.getColumn(task.getTableNameA(), colName).getUniqueValues());
+				distinctValuesA.put(colName, this.dataStorage.getColumn(task.getTableNameA(), colName).getDistinctValues());
 			}
 			for (String colName: task.getColumnNamesB()) {
-				uniqueValuesB.put(colName, this.dataStorage.getColumn(task.getTableNameB(), colName).getUniqueValues());
+				distinctValuesB.put(colName, this.dataStorage.getColumn(task.getTableNameB(), colName).getDistinctValues());
 			}
 
 			DependencyWorker.TaskMessage taskMessage = new DependencyWorker.TaskMessage(
 				this.largeMessageProxy,
-				task, uniqueValuesA, uniqueValuesB);
+				task, distinctValuesA, distinctValuesB);
 
 			this.getContext().getLog().info("Delegated task {}, message has {} memory size", task, taskMessage.getMemorySize());;
 
@@ -227,7 +227,7 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 					String otherTableName = this.inputFiles[id].getName();
 					List<Task> tasks = TaskGenerator.run(
 						dataStorage,
-						60 * 1024 * 1024, // target 60 mib
+						60 * 1024 * 1024, // target 60 mib. TODO make this configurable
 						tableName,
 						otherTableName);
 
