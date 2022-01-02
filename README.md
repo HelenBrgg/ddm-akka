@@ -17,13 +17,13 @@ Then, extract the sample dataset:
 cd data && unzip TPCH.zip && cd ..
 ```
 
-Now the master system can be started like this:
+Now the master system (with 4 workers) can be started like this :
 
 ```sh
 java -Xmx3g -ea -cp target/ddm-akka-1.0.jar de.ddm.Main master
 ```
 
-The system will run a while and shut down after it's finished. You  should receive output like this:
+The system will run a while and shut down after it is finished. You should receive output like this:
 
 ```sh
                 akka://ddm/user/master/dependencyMiner| Before task delegation: 0 unassigned tasks
@@ -85,10 +85,10 @@ A `Task` is a simple data structure, describing two tables and two respective se
 
 ![](./docs/structures.svg)
 
-Each `Task` will be turned into a `TaskMessage` when delegated. __NOTE: Currently, a Task message contains all unique values of the list columns in full. Once we get an incremental algorithm, as well as the LocalDataStorage actor working, our strategy of task generation may change significantly.__
-In order for `DependencyWorker.TaskMessage`'s to not become too large (which can very quickly trigger out-of-memory errors in Akka's serialization layer), the `Task`s will be generated to achieve a certain size limit (currently 80mb).
+A task `(T1[A,B], T2[X,Y])` for example will instruct to 
 
-__NOTE: The current implementation of `TaskGenerator` is imprecise and does not fully utilize the size limit.__
+Each `Task` will be turned into a `TaskMessage` when delegated. __NOTE: Currently, a Task message contains all unique values of the list columns in full. Once we get an incremental algorithm, as well as the LocalDataStorage actor working, our strategy of task generation may change significantly.__
+In order for `DependencyWorker.TaskMessage`'s to not become too large (which can very quickly trigger out-of-memory errors in Akka's serialization layer), the `Task`s will be generated to achieve a certain size limit (currently 80mb, note however the current implementation is imprecise):
 
 ### Case 1
 
@@ -125,7 +125,7 @@ When a `DependencyWorker` receives a `TaskMessage`, it checks for INDs with the 
 ```python
 for columnNameA, valueSetA in zip(columNamesA, distinctValuesA):
     for columnNameB, valueSetB in zip(columNamesB, distinctValuesB):
-        if len(valueSetA) ≤ len(valueSetB) and valueSetB ⊆ valueSetA:
+        if len(valueSetA) ≤ len(valueSetB) and valueSetA ⊆ valueSetB:
             pushResult(
                 dependentTable=tableNameA,
                 referencedTable=tableNameB,
@@ -143,7 +143,7 @@ The results then get sent back in a `CompletionMessage` to the `DependencyMiner`
 
 ### 4. Reporting the results
 
-The results get reported in both the files `results.txt` and `results.csv`. The former will contain the INDs in a human readable form, the latter as a CSV table.
+The results get reported by the `ResultCollector` in both the files `results.txt` and `results.csv`. The former will contain the INDs in a human readable form, the latter as a CSV table.
 
 
 [`Column`]: ./src/main/java/de/ddm/structures/Column.java
