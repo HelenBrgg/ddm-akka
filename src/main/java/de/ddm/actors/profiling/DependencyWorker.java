@@ -110,6 +110,16 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 		List<InclusionDependency> inclusionDeps = new ArrayList<>();
 		message.distinctValuesA.forEach((columnA, setA) -> {
 			message.distinctValuesB.forEach((columnB, setB) -> {
+			        if (columnA == columnB) {
+			            return; // skip trivial A c A dependencies
+				}
+				for (InclusionDependency dep : inclusionDeps) {
+				    if (dep.getDependentColumn() == columnA
+				    && dep.getReferencedColumn() == columnB){
+				       return; // already generated (otherwise, intra-table INDs get generated double)
+				    }
+				}
+				
 				int cardinalityA = setA.size();
 				int cardinalityB = setB.size();
 

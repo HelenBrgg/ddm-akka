@@ -220,7 +220,8 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 
 			// generate new tasks for completed table.
 			for (int id = 0; id < this.inputFiles.length; ++id) {
-				if (id == message.id) continue; // skip current table
+				// IMPORTANT: DONT skip current table!
+				//if (id == message.id) continue; // skip current table
 
 				// we want to check against every other completed table
 				if (this.finishedReading[id]) {
